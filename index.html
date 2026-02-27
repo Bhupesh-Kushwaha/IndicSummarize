@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IndicSummarize</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <style>
+    body { background: #f5f7fa; }
+    .hero {
+      background: linear-gradient(135deg, #ff6b35 0%, #f7931e 50%, #ff6b35 100%);
+      color: white; padding: 3rem 1rem; text-align: center;
+      border-bottom: 4px solid #d95c20;
+    }
+    .hero h1 { font-size: 2.8rem; font-weight: 800; letter-spacing: -1px; }
+    .hero p  { font-size: 1.1rem; opacity: 0.92; margin-bottom: 0; }
+    .lang-badge {
+      background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 20px; padding: 2px 12px; font-size: 0.82rem; display: inline-block; margin: 3px;
+    }
+    .card { border: none; box-shadow: 0 2px 12px rgba(0,0,0,0.07); }
+    .result-card { display: none; }
+    .stat-box {
+      background: #fff3e0; border-radius: 10px; padding: 14px; text-align: center;
+    }
+    .stat-box .num { font-size: 1.8rem; font-weight: 700; color: #ff6b35; }
+    .stat-box .lbl { font-size: 0.78rem; color: #777; text-transform: uppercase; letter-spacing: .5px; }
+    #summaryText { font-size: 1.05rem; line-height: 1.8; color: #333; }
+    .expand-notice {
+      background: #e8f4fd; border-left: 4px solid #0d6efd;
+      border-radius: 6px; padding: 10px 16px; font-size: 0.88rem; color: #0a58ca;
+    }
+    .spinner-overlay { display: none; }
+  </style>
+</head>
+<body>
+
+<!-- ── HERO ──────────────────────────────────────────────────── -->
+<div class="hero">
+  <h1>🇮🇳 IndicSummarize</h1>
+  <p class="mt-2 mb-3">Paste a URL of any Indian-language article. Get a clean English summary instantly.</p>
+  <div>
+    <span class="lang-badge">Hindi</span>
+    <span class="lang-badge">Gujarati</span>
+    <span class="lang-badge">Punjabi</span>
+    <span class="lang-badge">Tamil</span>
+    <span class="lang-badge">Telugu</span>
+    <span class="lang-badge">Malayalam</span>
+    <span class="lang-badge">+ more coming</span>
+  </div>
+</div>
+
+<!-- ── MAIN ──────────────────────────────────────────────────── -->
+<div class="container py-5">
+
+  <!-- Input card -->
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="card p-4 mb-4">
+        <h5 class="mb-3 fw-bold">🔗 Enter Article URL</h5>
+        <div class="input-group">
+          <input
+            type="url" id="urlInput"
+            class="form-control form-control-lg"
+            placeholder="https://example.com/hindi-article"
+          />
+          <button class="btn btn-warning fw-bold px-4" id="summarizeBtn" onclick="handleSummarize()">
+            Generate Summary
+          </button>
+        </div>
+
+        <!-- Loading -->
+        <div id="loadingBox" class="spinner-overlay mt-4 text-center">
+          <div class="spinner-border text-warning" role="status" style="width:2.5rem;height:2.5rem;"></div>
+          <p class="mt-2 text-muted">Extracting &rarr; Translating &rarr; Summarizing&hellip;</p>
+        </div>
+
+        <!-- Error -->
+        <div id="errorBox" class="alert alert-danger mt-3 d-none"></div>
+      </div>
+
+      <!-- Language expansion notice -->
+      <div class="expand-notice mb-4">
+        🌐 <strong>We currently support major Indian languages</strong> and are continuously expanding regional language coverage.
+        New languages including Marathi, Bengali, Kannada, Odia and more are being added.
+      </div>
+
+      <!-- Result card -->
+      <div class="card p-4 result-card" id="resultCard">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+          <div>
+            <h5 class="fw-bold mb-1">📄 Summary</h5>
+            <small class="text-muted" id="articleTitle"></small>
+          </div>
+          <span class="badge bg-warning text-dark fs-6 px-3 py-2" id="langBadge"></span>
+        </div>
+
+        <!-- Stats -->
+        <div class="row g-3 mb-4">
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="num" id="origCount">—</div>
+              <div class="lbl">Original Words</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="stat-box">
+              <div class="num" id="summCount">—</div>
+              <div class="lbl">Summary Words</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Summary text -->
+        <div class="bg-light rounded p-3">
+          <p id="summaryText" class="mb-0"></p>
+        </div>
+
+        <!-- Copy button -->
+        <button class="btn btn-outline-secondary btn-sm mt-3" onclick="copyText()">
+          📋 Copy Summary
+        </button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer class="text-center text-muted py-4" style="font-size:.82rem;">
+  IndicSummarize &mdash; Powered by NLLB-200 &amp; BART | Built with Flask &amp; HuggingFace 🤗
+</footer>
+
+<script>
+async function handleSummarize() {
+  const url = document.getElementById("urlInput").value.trim();
+  const loading  = document.getElementById("loadingBox");
+  const errorBox = document.getElementById("errorBox");
+  const resultCard = document.getElementById("resultCard");
+  const btn = document.getElementById("summarizeBtn");
+
+  // Reset UI
+  errorBox.classList.add("d-none");
+  resultCard.style.display = "none";
+
+  if (!url) {
+    showError("Please enter a valid URL.");
+    return;
+  }
+
+  // Show loader
+  loading.style.display = "block";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch("/summarize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || data.error) {
+      showError(data.error || "Something went wrong. Please try again.");
+      return;
+    }
+
+    // Populate results
+    document.getElementById("articleTitle").textContent = data.title || "";
+    document.getElementById("langBadge").textContent    = "🌐 " + data.detected_language;
+    document.getElementById("origCount").textContent    = data.original_word_count.toLocaleString();
+    document.getElementById("summCount").textContent    = data.summary_word_count.toLocaleString();
+    document.getElementById("summaryText").textContent  = data.summary;
+
+    resultCard.style.display = "block";
+    resultCard.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  } catch (err) {
+    showError("Network error: " + err.message);
+  } finally {
+    loading.style.display = "none";
+    btn.disabled = false;
+  }
+}
+
+function showError(msg) {
+  const box = document.getElementById("errorBox");
+  box.textContent = msg;
+  box.classList.remove("d-none");
+}
+
+function copyText() {
+  const text = document.getElementById("summaryText").textContent;
+  navigator.clipboard.writeText(text).then(() => alert("Summary copied to clipboard!"));
+}
+
+// Allow Enter key in input
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("urlInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") handleSummarize();
+  });
+});
+</script>
+</body>
+</html>
